@@ -19,11 +19,11 @@ import java.math.BigDecimal
 
 @StartableByRPC
 @InitiatingFlow
-class CreateAndIssueCoinFlow(val name: String,
-                             val currency: String,
-                             val price: Int,
-                             val volume: Int,
-                             val holder: Party) : FlowLogic<String>() {
+class CreateAndIssueLocalCoinFlow(val name: String,
+                                  val currency: String,
+                                  val price: Int,
+                                  val volume: Int,
+                                  val holder: Party) : FlowLogic<String>() {
     override val progressTracker = ProgressTracker()
 
     @Suspendable

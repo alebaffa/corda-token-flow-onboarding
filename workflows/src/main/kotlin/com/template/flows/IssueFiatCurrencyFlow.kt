@@ -12,9 +12,9 @@ import net.corda.core.identity.Party
 import net.corda.core.utilities.ProgressTracker
 
 @StartableByRPC
-class IssueUSDFlow(private val currency: String,
-                   private val amount: Long,
-                   private val recipient: Party) : FlowLogic<String>() {
+class IssueFiatCurrencyFlow(private val currency: String,
+                            private val amount: Long,
+                            private val recipient: Party) : FlowLogic<String>() {
     override val progressTracker = ProgressTracker()
 
     @Suspendable

@@ -16,7 +16,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
 class FlowTests {
-    val network = MockNetwork(MockNetworkParameters(cordappsForAllNodes = listOf(
+    private val network = MockNetwork(MockNetworkParameters(cordappsForAllNodes = listOf(
             TestCordapp.findCordapp("com.template.states"),
             TestCordapp.findCordapp("com.template.flows"),
             TestCordapp.findCordapp("com.template.contracts"),
@@ -25,8 +25,10 @@ class FlowTests {
             threadPerNode = true,
             networkParameters = testNetworkParameters(minimumPlatformVersion = 4)
     ))
-    val a = network.createNode()
-    val b = network.createNode()
+    private val a = network.createNode()
+    private val b = network.createNode()
+    private val c = network.createNode()
+    private val d = network.createNode()
 
     @Before
     fun setup() {
@@ -40,7 +42,7 @@ class FlowTests {
     fun `MoneyAreIssuedToRecepient`() {
         val borrower = b.info.chooseIdentityAndCert().party
 
-        a.startFlow(IssueUSDFlow(USD.tokenIdentifier, 100, borrower)).getOrThrow()
+        a.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, 100, borrower)).getOrThrow()
         network.waitQuiescent()
         val balance = b.services.vaultService.queryBy(FungibleToken::class.java)
 
@@ -51,7 +53,7 @@ class FlowTests {
     fun `CoinTokenIsCreatedAndIssuedToHolder`() {
         val holder = b.info.chooseIdentityAndCert().party
 
-        a.startFlow(CreateAndIssueCoinFlow("ETH", "USD", 10000, 100, holder)).getOrThrow()
+        a.startFlow(CreateAndIssueLocalCoinFlow("ETH", "USD", 10000, 100, holder)).getOrThrow()
         network.waitQuiescent()
 
         assertNotNull(b.services.vaultService.queryBy(CoinState::class.java))
