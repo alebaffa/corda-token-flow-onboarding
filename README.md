@@ -5,3 +5,8 @@
 # Corda on boarding project
 
 On boarding project using Corda Token SDK and Account SDK.
+
+
+ >    start IssueUSDFlow currency: USD, amount: 100, recipient: "O=PartyB,L=New York,C=US"
+ 
+ >    run vaultQuery contractStateType: net.corda.core.contracts.FungibleState

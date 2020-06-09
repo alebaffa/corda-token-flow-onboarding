@@ -12,9 +12,9 @@ import net.corda.core.identity.Party
 import net.corda.core.utilities.ProgressTracker
 
 @StartableByRPC
-class IssueUSDFlow(val currency: String,
-                   val amount: Long,
-                   val recipient: Party) : FlowLogic<String>() {
+class IssueUSDFlow(private val currency: String,
+                   private val amount: Long,
+                   private val recipient: Party) : FlowLogic<String>() {
     override val progressTracker = ProgressTracker()
 
     @Suspendable
@@ -28,7 +28,7 @@ class IssueUSDFlow(val currency: String,
         /* Create an instance of FungibleToken for the fiat currency to be issued */
         val fungibleToken = FungibleToken(Amount(amount,issuedTokenType),recipient)
 
-        val stx = subFlow(IssueTokens(listOf(fungibleToken), listOf(recipient)))
+        subFlow(IssueTokens(listOf(fungibleToken), listOf(recipient)))
         return "Issued $amount $currency token(s) to ${recipient.name.organisation}"
 
     }
