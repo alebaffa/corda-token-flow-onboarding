@@ -10,18 +10,15 @@ import com.template.states.CoinState
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.flows.FlowLogic
-import net.corda.core.flows.InitiatingFlow
 import net.corda.core.flows.StartableByRPC
 import net.corda.core.identity.Party
 import net.corda.core.utilities.ProgressTracker
-import java.math.BigDecimal
+import java.util.*
 
 
 @StartableByRPC
-@InitiatingFlow
 class CreateAndIssueLocalCoinFlow(val name: String,
-                                  val currency: String,
-                                  val price: Int,
+                                  val price: Amount<Currency>,
                                   val volume: Int,
                                   val holder: Party) : FlowLogic<String>() {
     override val progressTracker = ProgressTracker()
@@ -32,8 +29,7 @@ class CreateAndIssueLocalCoinFlow(val name: String,
         val notary = serviceHub.networkMapCache.notaryIdentities[0]
 
         // 2. create the transaction components
-        val coinState = CoinState(ourIdentity, name, currency, price,
-                0, UniqueIdentifier(), listOf(ourIdentity))
+        val coinState = CoinState(ourIdentity, name, price, 0, UniqueIdentifier(), listOf(ourIdentity))
 
         /* 3. create the transaction to create the token using the subflow provided by the Token SDK
            This provides already the CreateEvolvableType() Command, retrieves all the signatures and updates the ledger */
@@ -49,7 +45,7 @@ class CreateAndIssueLocalCoinFlow(val name: String,
         // 6. Issue the token created
         val stx = subFlow(IssueTokens(listOf(tokenCoin)))
 
-        return ("Created " + volume + " " + name + " coins for "+ price + " " + currency +
-                " to "+ holder +"\nTransaction ID: " + stx.id)
+        return ("Created " + volume + " " + name + " coins for " + price + " " + price.token.currencyCode +
+                " to " + holder + "\nTransaction ID: " + stx.id)
     }
 }
