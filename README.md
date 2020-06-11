@@ -6,7 +6,13 @@
 
 On boarding project using Corda Token SDK and Account SDK.
 
-
- >    start IssueFiatCurrencyFlow currency: USD, amount: 100, recipient: "O=PartyB,L=New York,C=US"
+From LocalBank node shell:
+ >    start IssueFiatCurrencyFlow currency: USD, amount: 100, recipient: "O=Company,L=Tokyo,C=JP"
  
+ From Company node shell:
  >    run vaultQuery contractStateType: net.corda.core.contracts.FungibleState
+ 
+ From LocalBank node shell;
+ >    start CreateAndIssueLocalCoinFlow name: ETH, currency: USD, price: 1, volume: 100, holder: 
+
+ From
