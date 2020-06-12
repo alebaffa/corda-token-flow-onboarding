@@ -12,8 +12,7 @@ class CoinContract : EvolvableTokenContract(), Contract {
 
         coinState.apply {
             require(coinState.name.isNotEmpty()) { "The coin must have a name" }
-            require(coinState.currency.isNotEmpty()) { "The currency must be defined" }
-            require(coinState.price > 0) { "The coin price must be greater than zero" }
+            requireNotNull(coinState.valuation.token.currencyCode) { "The valuation must be defined" }
         }
     }
 

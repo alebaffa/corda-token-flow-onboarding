@@ -13,14 +13,14 @@ import net.corda.core.flows.FlowLogic
 import net.corda.core.flows.StartableByRPC
 import net.corda.core.identity.Party
 import net.corda.core.utilities.ProgressTracker
+import java.util.*
 
 
 @StartableByRPC
-class CreateAndIssueLocalCoinFlow(val name: String,
-                                  val currency: String,
-                                  val price: Int,
+class CreateAndIssueLocalCoinFlow(val tokenName: String,
                                   val volume: Int,
-                                  val holder: Party) : FlowLogic<String>() {
+                                  val holder: Party,
+                                  val valuation: Amount<Currency>) : FlowLogic<String>() {
     override val progressTracker = ProgressTracker()
 
     @Suspendable
@@ -29,7 +29,7 @@ class CreateAndIssueLocalCoinFlow(val name: String,
         val notary = serviceHub.networkMapCache.notaryIdentities[0]
 
         // 2. create the transaction components
-        val coinState = CoinState(ourIdentity, name, currency, price, 0, UniqueIdentifier(), listOf(ourIdentity))
+        val coinState = CoinState(ourIdentity, tokenName, valuation, 0, UniqueIdentifier(), listOf(ourIdentity))
 
         /* 3. The subFlow provides the TransactionBuilder with the relative Commands and Signatures */
         subFlow(CreateEvolvableTokens(coinState withNotary notary))
@@ -44,7 +44,7 @@ class CreateAndIssueLocalCoinFlow(val name: String,
         // 6. Issue the token created
         val stx = subFlow(IssueTokens(listOf(tokenCoin)))
 
-        return ("Created " + volume + " " + name + " tokens for " + price + " " + currency +
+        return ("Created " + volume + " " + tokenName + " tokens for " + valuation.quantity + " " + valuation.token.currencyCode +
                 " to " + holder + "\nTransaction ID: " + stx.id)
     }
 }

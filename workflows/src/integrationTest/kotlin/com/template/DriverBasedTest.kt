@@ -20,7 +20,7 @@ class DriverBasedTest {
         // Start a pair of nodes and wait for them both to be ready.
         val (partyAHandle, partyBHandle) = startNodes(bankA, bankB)
 
-        // From each node, make an RPC call to retrieve another node's name from the network map, to verify that the
+        // From each node, make an RPC call to retrieve another node's tokenName from the network map, to verify that the
         // nodes have started and can communicate.
 
         // This is a very basic test: in practice tests would be starting flows, and verifying the states in the vault
@@ -34,7 +34,7 @@ class DriverBasedTest {
         DriverParameters(isDebug = true, startNodesInProcess = true)
     ) { test() }
 
-    // Makes an RPC call to retrieve another node's name from the network map.
+    // Makes an RPC call to retrieve another node's tokenName from the network map.
     private fun NodeHandle.resolveName(name: CordaX500Name) = rpc.wellKnownPartyFromX500Name(name)!!.name
 
     // Resolves a list of futures to a list of the promised values.

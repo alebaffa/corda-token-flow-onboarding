@@ -3,6 +3,7 @@ package com.template.flows
 import com.r3.corda.lib.tokens.contracts.states.FungibleToken
 import com.r3.corda.lib.tokens.money.USD
 import com.template.states.CoinState
+import net.corda.core.contracts.Amount
 import net.corda.core.contracts.TransactionVerificationException
 import net.corda.core.utilities.getOrThrow
 import net.corda.testing.common.internal.testNetworkParameters
@@ -14,6 +15,7 @@ import net.corda.testing.node.TestCordapp
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import java.math.BigDecimal
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
@@ -22,6 +24,7 @@ class FlowTests {
     private lateinit var network: MockNetwork
     private lateinit var a: StartedMockNode
     private lateinit var b: StartedMockNode
+    private lateinit var c: StartedMockNode
 
     @Before
     fun setup() {
@@ -36,6 +39,7 @@ class FlowTests {
         ))
         a = network.createPartyNode()
         b = network.createPartyNode()
+        c = network.createPartyNode()
     }
 
     @After
@@ -56,7 +60,7 @@ class FlowTests {
     fun `CoinTokenIsCreatedAndIssuedToHolder`() {
         val holder = b.info.singleIdentity()
 
-        a.startFlow(CreateAndIssueLocalCoinFlow("ETH","USD", 100 , 10000, holder)).getOrThrow()
+        a.startFlow(CreateAndIssueLocalCoinFlow("ETH", 10000, holder, Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD))).getOrThrow()
         network.waitQuiescent()
 
         assertNotNull(b.services.vaultService.queryBy(CoinState::class.java))
@@ -69,12 +73,45 @@ class FlowTests {
     fun `CoinToken_without_proper_inputs_fails`() {
         val holder = b.info.singleIdentity()
 
-        val future_no_name = a.startFlow(CreateAndIssueLocalCoinFlow("", "USD", 100, 10000, holder))
+        val future_no_name = a.startFlow(CreateAndIssueLocalCoinFlow(
+                "",
+                1000,
+                holder,
+                Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD)
+        ))
         network.waitQuiescent()
         assertFailsWith<TransactionVerificationException> { future_no_name.getOrThrow() }
 
-        val future_price_zero = a.startFlow(CreateAndIssueLocalCoinFlow("ETH", "", 100, 0, holder))
+        val future_price_zero = a.startFlow(CreateAndIssueLocalCoinFlow(
+                "",
+                1000,
+                holder,
+                Amount.fromDecimal(BigDecimal.valueOf(0), net.corda.finance.USD)
+        ))
         network.waitQuiescent()
         assertFailsWith<TransactionVerificationException> { future_price_zero.getOrThrow() }
+    }
+
+    @Test
+    fun `new_test`() {
+        val company = a.info.singleIdentity()
+        val foreignBank = c.info.singleIdentity()
+
+        // give some money to the Foreign bank
+        b.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, 10000, foreignBank)).getOrThrow()
+        network.waitQuiescent()
+
+        // give some token to the Company
+        b.startFlow(CreateAndIssueLocalCoinFlow(
+                "ETH",
+                20,
+                company,
+                Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD)
+        ))
+        network.waitQuiescent()
+
+        val future = a.startFlow(TransferCoinOverseasFlow(foreignBank,10)).isDone
+        network.waitQuiescent()
+        assert(future)
     }
 }
