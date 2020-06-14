@@ -19,6 +19,7 @@ import java.math.BigDecimal
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class FlowTests {
     private lateinit var network: MockNetwork
@@ -93,25 +94,28 @@ class FlowTests {
     }
 
     @Test
-    fun `new_test`() {
+    fun `sell_token_to_foreign_bank`() {
         val company = a.info.singleIdentity()
         val foreignBank = c.info.singleIdentity()
+        val amountOfTokenToSell = 20
+        val tokenName = "ETH"
+        val money = 10000
 
         // give some money to the Foreign bank
-        b.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, 10000, foreignBank))
+        b.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, money.toLong(), foreignBank))
         network.waitQuiescent()
 
         // give some token to the Company
         b.startFlow(CreateAndIssueLocalCoinFlow(
-                "ETH",
-                20,
+                tokenName,
+                amountOfTokenToSell,
                 company,
                 Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD)
         ))
         network.waitQuiescent()
 
-        a.startFlow(TransferCoinOverseasFlow(foreignBank, 10)).getOrThrow()
+        val result = a.startFlow(TransferCoinOverseasFlow(foreignBank, 10)).getOrThrow()
         network.waitQuiescent()
-
+        assertTrue { result.contains("\nCongratulations!") }
     }
 }

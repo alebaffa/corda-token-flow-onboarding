@@ -4,6 +4,11 @@ import co.paralleluniverse.fibers.Suspendable
 import com.r3.corda.lib.tokens.contracts.states.FungibleToken
 import com.r3.corda.lib.tokens.contracts.types.IssuedTokenType
 import com.r3.corda.lib.tokens.contracts.utilities.of
+import com.r3.corda.lib.tokens.selection.database.config.MAX_RETRIES_DEFAULT
+import com.r3.corda.lib.tokens.selection.database.config.PAGE_SIZE_DEFAULT
+import com.r3.corda.lib.tokens.selection.database.config.RETRY_CAP_DEFAULT
+import com.r3.corda.lib.tokens.selection.database.config.RETRY_SLEEP_DEFAULT
+import com.r3.corda.lib.tokens.selection.database.selector.DatabaseTokenSelection
 import com.r3.corda.lib.tokens.workflows.flows.move.addMoveFungibleTokens
 import com.r3.corda.lib.tokens.workflows.flows.move.addMoveTokens
 import com.r3.corda.lib.tokens.workflows.internal.flows.distribution.UpdateDistributionListFlow
@@ -40,30 +45,39 @@ class TransferCoinOverseasFlow(val foreignBank: Party,
                 status = Vault.StateStatus.UNCONSUMED,
                 contractStateTypes = setOf(CoinState::class.java)
         )
+        // take my StateAndRef of my tokens in my vault
         val coinStateAndRef: StateAndRef<FungibleToken> = serviceHub.vaultService.queryBy<FungibleToken>(criteria).states.single()
-        //val partyAndAmount = PartyAndAmount(ourIdentity, Amount(amount.toLong(), coinStateAndRef.state.data.tokenType))
-        addMoveFungibleTokens(txBuilder, serviceHub, Amount(amount.toLong(), coinStateAndRef.state.data.tokenType), foreignBank, ourIdentity)
         // create session with counterparty
         val session = initiateFlow(foreignBank)
-        // how many tokens I have in the vault
+        // set how many tokens I want to sell
         val amountOfToken = amount of coinStateAndRef.state.data.issuedTokenType
+        // create the token move proposal
+        addMoveFungibleTokens(txBuilder, serviceHub, Amount(
+                amount.toLong(),
+                coinStateAndRef.state.data.tokenType
+        ), foreignBank, ourIdentity)
         // send the amount of token I want to sell
         session.send(amountOfToken)
-
+        // ask the recipient to send back its StateAndRef of the money in his vault
         val inputs = subFlow(ReceiveStateAndRefFlow<FungibleToken>(session))
-        val moneyReceived = session.receive<FungibleToken>().unwrap { it }
+        // receive the actual money from the recipient
+        val moneyReceived = session.receive<List<FungibleToken>>().unwrap { it }
+        // move the money to my vault
+        addMoveTokens(txBuilder, inputs, moneyReceived)
+        /* Sign the transaction with the private key */
+        val stx = collectSignatures(txBuilder, session)
+        return ("\nCongratulations! $amount of ETH have been sold to ${foreignBank.name.organisation}" +
+                "\nTransaction ID: ${stx.id}")
+    }
 
-        addMoveTokens(txBuilder, inputs, listOf(moneyReceived))
-
-        /* Sign the transaction with your private */
+    @Suspendable
+    private fun collectSignatures(txBuilder: TransactionBuilder, session: FlowSession): SignedTransaction {
         val initialSignedTx = serviceHub.signInitialTransaction(txBuilder)
 
         /* Collect the signatures and finality */
         val signedTx = subFlow(CollectSignaturesFlow(initialSignedTx, listOf(session)))
         subFlow(UpdateDistributionListFlow(signedTx))
-        val stx = subFlow(FinalityFlow(signedTx, listOf(session)))
-        return ("\nCongratulations! " + amount + " of ETH have been sold to " + foreignBank.name.organisation + "\nTransaction ID: "
-                + stx.id)
+        return subFlow(FinalityFlow(signedTx, listOf(session)))
     }
 
 
@@ -78,10 +92,17 @@ class TransferCoinOverseasFlow(val foreignBank: Party,
                     relevancyStatus = Vault.RelevancyStatus.RELEVANT,
                     status = Vault.StateStatus.UNCONSUMED
             )
+
             val moneyInVault: StateAndRef<FungibleToken> = serviceHub.vaultService.queryBy<FungibleToken>(criteria).states.single()
             val tokenBack = moneyInVault.state.data
-            subFlow(SendStateAndRefFlow(counterpartySession, listOf(moneyInVault)))
-            counterpartySession.send(tokenBack)
+
+            val partyAndAmount = PartyAndAmount(counterpartySession.counterparty, Amount(amount.quantity, tokenBack.tokenType))
+            val tokenSelection = DatabaseTokenSelection(serviceHub, MAX_RETRIES_DEFAULT, RETRY_SLEEP_DEFAULT, RETRY_CAP_DEFAULT, PAGE_SIZE_DEFAULT)
+            val inputsAndOutputs: Pair<List<StateAndRef<FungibleToken>>, List<FungibleToken>> =
+                    tokenSelection.generateMove(listOf(Pair(partyAndAmount.party, partyAndAmount.amount)), ourIdentity)
+
+            subFlow(SendStateAndRefFlow(counterpartySession, inputsAndOutputs.first))
+            counterpartySession.send(inputsAndOutputs.second)
 
             //signing
             subFlow(object : SignTransactionFlow(counterpartySession) {
