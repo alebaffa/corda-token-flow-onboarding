@@ -3,6 +3,7 @@ package com.template.flows
 import co.paralleluniverse.fibers.Suspendable
 import com.r3.corda.lib.tokens.contracts.states.FungibleToken
 import com.r3.corda.lib.tokens.contracts.types.IssuedTokenType
+import com.r3.corda.lib.tokens.contracts.types.TokenType
 import com.r3.corda.lib.tokens.contracts.utilities.of
 import com.r3.corda.lib.tokens.selection.database.config.MAX_RETRIES_DEFAULT
 import com.r3.corda.lib.tokens.selection.database.config.PAGE_SIZE_DEFAULT
@@ -87,7 +88,27 @@ class TransferCoinOverseasFlow(val foreignBank: Party,
         override fun call(): SignedTransaction {
             /* Receive the amount of tokens to buy */
             val amount = counterpartySession.receive<Amount<IssuedTokenType>>().unwrap { it }
+            // retrieve money from vault
+            val (partyAndAmount, tokenSelection) = retrieveMoneyFromVault(amount)
+            // generate the money move proposal for the initiator
+            val inputsAndOutputs: Pair<List<StateAndRef<FungibleToken>>, List<FungibleToken>> =
+                    tokenSelection.generateMove(listOf(Pair(partyAndAmount.party, partyAndAmount.amount)), ourIdentity)
+            // send StateAndRef of money to initiator
+            subFlow(SendStateAndRefFlow(counterpartySession, inputsAndOutputs.first))
+            // send actual money back to initiator
+            counterpartySession.send(inputsAndOutputs.second)
+            //sign transaction
+            subFlow(object : SignTransactionFlow(counterpartySession) {
+                @Throws(FlowException::class)
+                override fun checkTransaction(stx: SignedTransaction) { // Custom Logic to validate transaction.
+                }
+            })
+            //finalization
+            return subFlow(ReceiveFinalityFlow(counterpartySession))
+        }
 
+        @Suspendable
+        private fun retrieveMoneyFromVault(amount: Amount<IssuedTokenType>): Pair<PartyAndAmount<TokenType>, DatabaseTokenSelection> {
             val criteria = QueryCriteria.FungibleStateQueryCriteria(
                     relevancyStatus = Vault.RelevancyStatus.RELEVANT,
                     status = Vault.StateStatus.UNCONSUMED
@@ -98,20 +119,7 @@ class TransferCoinOverseasFlow(val foreignBank: Party,
 
             val partyAndAmount = PartyAndAmount(counterpartySession.counterparty, Amount(amount.quantity, tokenBack.tokenType))
             val tokenSelection = DatabaseTokenSelection(serviceHub, MAX_RETRIES_DEFAULT, RETRY_SLEEP_DEFAULT, RETRY_CAP_DEFAULT, PAGE_SIZE_DEFAULT)
-            val inputsAndOutputs: Pair<List<StateAndRef<FungibleToken>>, List<FungibleToken>> =
-                    tokenSelection.generateMove(listOf(Pair(partyAndAmount.party, partyAndAmount.amount)), ourIdentity)
-
-            subFlow(SendStateAndRefFlow(counterpartySession, inputsAndOutputs.first))
-            counterpartySession.send(inputsAndOutputs.second)
-
-            //signing
-            subFlow(object : SignTransactionFlow(counterpartySession) {
-                @Throws(FlowException::class)
-                override fun checkTransaction(stx: SignedTransaction) { // Custom Logic to validate transaction.
-                }
-            })
-            //signing
-            return subFlow(ReceiveFinalityFlow(counterpartySession))
+            return Pair(partyAndAmount, tokenSelection)
         }
     }
 }

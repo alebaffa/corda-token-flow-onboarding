@@ -47,7 +47,7 @@ class FlowTests {
     fun tearDown() = network.stopNodes()
 
     @Test
-    fun `MoneyAreIssuedToRecepient`() {
+    fun `money are issued to recepient`() {
         val borrower = b.info.singleIdentity()
 
         a.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, 100, borrower)).getOrThrow()
@@ -58,7 +58,7 @@ class FlowTests {
     }
 
     @Test
-    fun `CoinTokenIsCreatedAndIssuedToHolder`() {
+    fun `coin token is created and issued to holder`() {
         val holder = b.info.singleIdentity()
 
         a.startFlow(CreateAndIssueLocalCoinFlow("ETH", 10000, holder, Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD))).getOrThrow()
@@ -71,7 +71,7 @@ class FlowTests {
     }
 
     @Test
-    fun `CoinToken_without_proper_inputs_fails`() {
+    fun `Coin token without proper inputs fails`() {
         val holder = b.info.singleIdentity()
 
         val future_no_name = a.startFlow(CreateAndIssueLocalCoinFlow(
@@ -94,7 +94,7 @@ class FlowTests {
     }
 
     @Test
-    fun `sell_token_to_foreign_bank`() {
+    fun `deliver token and receive money back`() {
         val company = a.info.singleIdentity()
         val foreignBank = c.info.singleIdentity()
         val amountOfTokenToSell = 20
