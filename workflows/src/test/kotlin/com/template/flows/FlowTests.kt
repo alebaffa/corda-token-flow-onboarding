@@ -98,7 +98,7 @@ class FlowTests {
         val foreignBank = c.info.singleIdentity()
 
         // give some money to the Foreign bank
-        b.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, 10000, foreignBank)).getOrThrow()
+        b.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, 10000, foreignBank))
         network.waitQuiescent()
 
         // give some token to the Company
@@ -110,8 +110,8 @@ class FlowTests {
         ))
         network.waitQuiescent()
 
-        val future = a.startFlow(TransferCoinOverseasFlow(foreignBank,10)).isDone
+        a.startFlow(TransferCoinOverseasFlow(foreignBank, 10)).getOrThrow()
         network.waitQuiescent()
-        assert(future)
+
     }
 }
