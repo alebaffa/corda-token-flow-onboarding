@@ -14,7 +14,6 @@ import com.r3.corda.lib.tokens.workflows.flows.move.addMoveFungibleTokens
 import com.r3.corda.lib.tokens.workflows.flows.move.addMoveTokens
 import com.r3.corda.lib.tokens.workflows.internal.flows.distribution.UpdateDistributionListFlow
 import com.r3.corda.lib.tokens.workflows.types.PartyAndAmount
-import com.template.states.CoinState
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.StateAndRef
 import net.corda.core.flows.*
@@ -29,7 +28,7 @@ import net.corda.core.utilities.unwrap
 
 @StartableByRPC
 @InitiatingFlow
-class TransferCoinOverseasFlow(val foreignBank: Party,
+class TransferCoinOverseasFlow(val bank: Party,
                                val amount: Int) : FlowLogic<String>() {
 
     override val progressTracker = ProgressTracker()
@@ -43,20 +42,19 @@ class TransferCoinOverseasFlow(val foreignBank: Party,
         // take the token from the vault
         val criteria = QueryCriteria.FungibleStateQueryCriteria(
                 relevancyStatus = Vault.RelevancyStatus.RELEVANT,
-                status = Vault.StateStatus.UNCONSUMED,
-                contractStateTypes = setOf(CoinState::class.java)
+                status = Vault.StateStatus.UNCONSUMED
         )
         // take my StateAndRef of my tokens in my vault
         val coinStateAndRef: StateAndRef<FungibleToken> = serviceHub.vaultService.queryBy<FungibleToken>(criteria).states.single()
         // create session with counterparty
-        val session = initiateFlow(foreignBank)
+        val session = initiateFlow(bank)
         // set how many tokens I want to sell
         val amountOfToken = amount of coinStateAndRef.state.data.issuedTokenType
         // create the token move proposal
         addMoveFungibleTokens(txBuilder, serviceHub, Amount(
                 amount.toLong(),
                 coinStateAndRef.state.data.tokenType
-        ), foreignBank, ourIdentity)
+        ), bank, ourIdentity)
         // send the amount of token I want to sell
         session.send(amountOfToken)
         // ask the recipient to send back its StateAndRef of the money in his vault
@@ -67,7 +65,7 @@ class TransferCoinOverseasFlow(val foreignBank: Party,
         addMoveTokens(txBuilder, inputs, moneyReceived)
         /* Sign the transaction with the private key */
         val stx = collectSignatures(txBuilder, session)
-        return ("\nCongratulations! $amount of ETH have been sold to ${foreignBank.name.organisation}" +
+        return ("\nCongratulations! $amount of ETH have been sold to ${bank.name.organisation}" +
                 "\nTransaction ID: ${stx.id}")
     }
 

@@ -118,4 +118,26 @@ class FlowTests {
         network.waitQuiescent()
         assertTrue { result.contains("\nCongratulations!") }
     }
+
+    @Test
+    fun `move token from one bank to another`() {
+        val foreignBank = c.info.singleIdentity()
+        val localBank = b.info.singleIdentity()
+        val amountOfTokenToGive = 20
+        val amountOfTokenToMove = 10
+        val tokenName = "ETH"
+
+        // give some token to the local bank
+        a.startFlow(CreateAndIssueLocalCoinFlow(
+                tokenName,
+                amountOfTokenToGive,
+                localBank,
+                Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD)
+        ))
+        network.waitQuiescent()
+
+        // localBank moves some tokens to foreignBank for free
+        b.startFlow(MoveTokenToOtherBankFlow(foreignBank, amountOfTokenToMove)).getOrThrow()
+        network.waitQuiescent()
+    }
 }
