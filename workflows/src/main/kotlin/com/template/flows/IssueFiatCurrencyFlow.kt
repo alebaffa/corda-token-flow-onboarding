@@ -1,7 +1,10 @@
 package com.template.flows
 
 import co.paralleluniverse.fibers.Suspendable
+import com.r3.corda.lib.tokens.contracts.states.AbstractToken
 import com.r3.corda.lib.tokens.contracts.states.FungibleToken
+import com.r3.corda.lib.tokens.contracts.types.IssuedTokenType
+import com.r3.corda.lib.tokens.contracts.types.TokenType
 import com.r3.corda.lib.tokens.contracts.utilities.issuedBy
 import com.r3.corda.lib.tokens.money.FiatCurrency
 import com.r3.corda.lib.tokens.workflows.flows.rpc.IssueTokens
@@ -19,14 +22,11 @@ class IssueFiatCurrencyFlow(private val currency: String,
 
     @Suspendable
     override fun call(): String {
-        /* Create an instance of the fiat currency token */
-        val token = FiatCurrency.getInstance(currency)
+        val token : TokenType = FiatCurrency.getInstance(currency)
 
-        /* Create an instance of IssuedTokenType for the fiat currency */
-        val issuedTokenType = token issuedBy ourIdentity
+        val issuedTokenType : IssuedTokenType = token issuedBy ourIdentity
 
-        /* Create an instance of FungibleToken for the fiat currency to be issued */
-        val fungibleToken = FungibleToken(Amount(amount,issuedTokenType),recipient)
+        val fungibleToken : AbstractToken = FungibleToken(Amount(amount,issuedTokenType),recipient)
 
         subFlow(IssueTokens(listOf(fungibleToken), listOf(recipient)))
         return "Issued $amount $currency token(s) to ${recipient.name.organisation}"

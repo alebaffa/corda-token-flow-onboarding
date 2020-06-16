@@ -88,7 +88,7 @@ class TransferCoinOverseasFlow(val bank: Party,
             val amount = counterpartySession.receive<Amount<IssuedTokenType>>().unwrap { it }
             // retrieve money from vault
             val (partyAndAmount, tokenSelection) = retrieveMoneyFromVault(amount)
-            // generate the money move proposal for the initiator
+            // retrieve the money from the vault and calculate how much needs to be returned to the initiator
             val inputsAndOutputs: Pair<List<StateAndRef<FungibleToken>>, List<FungibleToken>> =
                     tokenSelection.generateMove(listOf(Pair(partyAndAmount.party, partyAndAmount.amount)), ourIdentity)
             // send StateAndRef of money to initiator
