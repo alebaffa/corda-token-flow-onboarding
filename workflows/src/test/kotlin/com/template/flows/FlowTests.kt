@@ -27,6 +27,7 @@ class FlowTests {
     private lateinit var b: StartedMockNode
     private lateinit var c: StartedMockNode
 
+
     @Before
     fun setup() {
         network = MockNetwork(MockNetworkParameters(cordappsForAllNodes = listOf(
@@ -49,7 +50,7 @@ class FlowTests {
     @Test
     fun `money are issued to recepient`() {
         val borrower = b.info.singleIdentity()
-
+        // TODO : fix tests.
         a.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, 100, borrower)).getOrThrow()
         network.waitQuiescent()
         val balance = b.services.vaultService.queryBy(FungibleToken::class.java)
