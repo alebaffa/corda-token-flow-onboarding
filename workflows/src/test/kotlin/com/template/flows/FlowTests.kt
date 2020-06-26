@@ -1,16 +1,12 @@
 package com.template.flows
 
 import com.r3.corda.lib.accounts.contracts.states.AccountInfo
+import com.r3.corda.lib.accounts.workflows.flows.OurAccounts
 import com.r3.corda.lib.tokens.contracts.states.FungibleToken
 import com.r3.corda.lib.tokens.money.USD
-import com.r3.corda.lib.accounts.workflows.accountService
-import com.r3.corda.lib.accounts.workflows.flows.OurAccounts
 import com.template.states.CoinState
 import net.corda.core.contracts.Amount
-import net.corda.core.contracts.FungibleState
 import net.corda.core.contracts.TransactionVerificationException
-import net.corda.core.node.services.queryBy
-import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.utilities.getOrThrow
 import net.corda.testing.common.internal.testNetworkParameters
 import net.corda.testing.core.singleIdentity
@@ -19,7 +15,6 @@ import net.corda.testing.node.MockNetworkParameters
 import net.corda.testing.node.StartedMockNode
 import net.corda.testing.node.TestCordapp
 import org.junit.After
-import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
@@ -68,7 +63,7 @@ class FlowTests {
         assertEquals("nodeA - Account1", accountsA.get()[0].state.data.name)
 
         val shareAccountInfoB = b.services.vaultService.queryBy(AccountInfo::class.java).states.single()
-        assertEquals(accountsA.get()[0],shareAccountInfoB)
+        assertEquals(accountsA.get()[0], shareAccountInfoB)
     }
 
     @Test
@@ -86,9 +81,10 @@ class FlowTests {
 
     @Test
     fun `coin token is created and issued to holder`() {
-        val holder = b.info.singleIdentity()
+        val nodeB = b.info.singleIdentity()
+        a.startFlow(CreateAndShareAccountFlow("nodeA - Account1", listOf(nodeB)))
 
-        a.startFlow(CreateAndIssueLocalCoinFlow("ETH", 10000, holder, Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD))).getOrThrow()
+        a.startFlow(CreateAndIssueLocalCoinFlow("ETH", 10000, "nodeA - Account1", Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD))).getOrThrow()
         network.waitQuiescent()
 
         assertNotNull(b.services.vaultService.queryBy(CoinState::class.java))
@@ -99,28 +95,29 @@ class FlowTests {
 
     @Test
     fun `Coin token without proper inputs fails`() {
-        val holder = b.info.singleIdentity()
+        val nodeB = b.info.singleIdentity()
+        a.startFlow(CreateAndShareAccountFlow("nodeA - Account1", listOf(nodeB)))
 
         val future_no_name = a.startFlow(CreateAndIssueLocalCoinFlow(
                 "",
                 1000,
-                holder,
+                "nodeA - Account1",
                 Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD)
         ))
         network.waitQuiescent()
         assertFailsWith<TransactionVerificationException> { future_no_name.getOrThrow() }
 
-        val future_price_zero = a.startFlow(CreateAndIssueLocalCoinFlow(
+        val futurePriceZero = a.startFlow(CreateAndIssueLocalCoinFlow(
                 "",
                 1000,
-                holder,
+                "nodeA - Account1",
                 Amount.fromDecimal(BigDecimal.valueOf(0), net.corda.finance.USD)
         ))
         network.waitQuiescent()
-        assertFailsWith<TransactionVerificationException> { future_price_zero.getOrThrow() }
+        assertFailsWith<TransactionVerificationException> { futurePriceZero.getOrThrow() }
     }
 
-   /* @Test
+    @Test
     fun `deliver token and receive money back`() {
         val company = a.info.singleIdentity()
         val foreignBank = c.info.singleIdentity()
@@ -128,25 +125,31 @@ class FlowTests {
         val tokenName = "ETH"
         val money = 10000
 
-        // give some money to the Foreign bank
-        b.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, money.toLong(), foreignBank))
+        val nodeA = a.info.singleIdentity()
+        val nodeB = b.info.singleIdentity()
+        // Create one account on Noda A and NodeB
+        a.startFlow(CreateAndShareAccountFlow("nodeA - Account1", listOf(nodeB)))
+        b.startFlow(CreateAndShareAccountFlow("nodeB - Account1", listOf(nodeA)))
+
+        // account in NodeB give some money to the account of nodeA
+        a.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, money.toLong(), "nodeA - Account1"))
         network.waitQuiescent()
 
         // give some token to the Company
         b.startFlow(CreateAndIssueLocalCoinFlow(
                 tokenName,
                 amountOfTokenToSell,
-                company,
+                "nodeA - Account1",
                 Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD)
         ))
         network.waitQuiescent()
 
-        val result = a.startFlow(TransferCoinOverseasFlow(foreignBank, 10)).getOrThrow()
+        val result = a.startFlow(TransferCoinOverseasFlow("nodeA - Account1", "nodeB - Account1",10)).getOrThrow()
         network.waitQuiescent()
         assertTrue { result.contains("\nCongratulations!") }
-    }*/
+    }
 
-    @Test
+/*    @Test
     fun `move token from one bank to another`() {
         val foreignBank = c.info.singleIdentity()
         val localBank = b.info.singleIdentity()
@@ -166,5 +169,5 @@ class FlowTests {
         // localBank moves some tokens to foreignBank for free
         b.startFlow(MoveTokenToOtherBankFlow(foreignBank, amountOfTokenToMove)).getOrThrow()
         network.waitQuiescent()
-    }
+    }*/
 }

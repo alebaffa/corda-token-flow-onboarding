@@ -23,8 +23,8 @@ class IssueFiatCurrencyFlow(private val currency: String,
 
     @Suspendable
     override fun call(): String {
-        val account = accountService.accountInfo(accountName)[0].state.data
-        val targetAccount = subFlow(RequestKeyForAccount(account))
+        val accountInfo = accountService.accountInfo(accountName)[0].state.data
+        val targetAccount = subFlow(RequestKeyForAccount(accountInfo))
 
         val token: TokenType = FiatCurrency.getInstance(currency)
 
@@ -33,7 +33,7 @@ class IssueFiatCurrencyFlow(private val currency: String,
         val fungibleToken: AbstractToken = FungibleToken(Amount(amount, issuedTokenType), targetAccount)
 
         subFlow(IssueTokens(listOf(fungibleToken)))
-        return "Issued $amount $currency token(s) to ${accountName}"
+        return "Issued $amount $currency token(s) to $accountName"
 
     }
 }

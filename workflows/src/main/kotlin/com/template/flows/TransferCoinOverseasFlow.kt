@@ -1,6 +1,8 @@
 package com.template.flows
 
 import co.paralleluniverse.fibers.Suspendable
+import com.r3.corda.lib.accounts.workflows.accountService
+import com.r3.corda.lib.accounts.workflows.flows.RequestKeyForAccount
 import com.r3.corda.lib.tokens.contracts.states.FungibleToken
 import com.r3.corda.lib.tokens.contracts.types.IssuedTokenType
 import com.r3.corda.lib.tokens.contracts.types.TokenType
@@ -17,7 +19,6 @@ import com.r3.corda.lib.tokens.workflows.types.PartyAndAmount
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.StateAndRef
 import net.corda.core.flows.*
-import net.corda.core.identity.Party
 import net.corda.core.node.services.Vault
 import net.corda.core.node.services.queryBy
 import net.corda.core.node.services.vault.QueryCriteria
@@ -28,13 +29,19 @@ import net.corda.core.utilities.unwrap
 
 @StartableByRPC
 @InitiatingFlow
-class TransferCoinOverseasFlow(val bank: Party,
+class TransferCoinOverseasFlow(val seller_account: String,
+                               val buyer_account: String,
                                val amount: Int) : FlowLogic<String>() {
 
     override val progressTracker = ProgressTracker()
 
     @Suspendable
     override fun call(): String {
+        val sellerAccountInfo = accountService.accountInfo(seller_account)[0].state.data
+        val sellerAnonymousParty = subFlow(RequestKeyForAccount(sellerAccountInfo))
+        val buyerAccountInfo = accountService.accountInfo(buyer_account)[0].state.data
+        val buyerAnonymousParty = subFlow(RequestKeyForAccount(buyerAccountInfo))
+
         /* Choose the notary for the transaction */
         val notary = serviceHub.networkMapCache.notaryIdentities[0]
         /* Build the transaction with a notary */
@@ -46,17 +53,19 @@ class TransferCoinOverseasFlow(val bank: Party,
         )
         // take my StateAndRef of my tokens in my vault
         val coinStateAndRef: StateAndRef<FungibleToken> = serviceHub.vaultService.queryBy<FungibleToken>(criteria).states.single()
-        // create session with counterparty
-        val session = initiateFlow(bank)
+        // create session between seller account and account buyer
+        val session = initiateFlow(sellerAccountInfo.host)
         // set how many tokens I want to sell
         val amountOfToken = amount of coinStateAndRef.state.data.issuedTokenType
         // create the token move proposal
         addMoveFungibleTokens(txBuilder, serviceHub, Amount(
                 amount.toLong(),
                 coinStateAndRef.state.data.tokenType
-        ), bank, ourIdentity)
+        ), buyerAnonymousParty, ourIdentity)
         // send the amount of token I want to sell
         session.send(amountOfToken)
+        session.send(seller_account)
+        session.send(buyer_account)
         // ask the recipient to send back its StateAndRef of the money in his vault
         val inputs = subFlow(ReceiveStateAndRefFlow<FungibleToken>(session))
         // receive the actual money from the recipient
@@ -65,7 +74,7 @@ class TransferCoinOverseasFlow(val bank: Party,
         addMoveTokens(txBuilder, inputs, moneyReceived)
         /* Sign the transaction with the private key */
         val stx = collectSignatures(txBuilder, session)
-        return ("\nCongratulations! $amount of ETH have been sold to ${bank.name.organisation}" +
+        return ("\nCongratulations! $amount of ETH have been sold to $buyer_account" +
                 "\nTransaction ID: ${stx.id}")
     }
 
@@ -86,11 +95,16 @@ class TransferCoinOverseasFlow(val bank: Party,
         override fun call(): SignedTransaction {
             /* Receive the amount of tokens to buy */
             val amount = counterpartySession.receive<Amount<IssuedTokenType>>().unwrap { it }
+            val sellerAccountName: String = counterpartySession.receive(String::class.java).unwrap { it }
+            val buyerAccountName: String = counterpartySession.receive(String::class.java).unwrap{ it }
+            val buyerAccountInfo = accountService.accountInfo(buyerAccountName)[0].state.data
+            val buyerAnonymousParty = subFlow(RequestKeyForAccount(buyerAccountInfo))
+
             // retrieve money from vault
             val (partyAndAmount, tokenSelection) = retrieveMoneyFromVault(amount)
             // retrieve the money from the vault and calculate how much needs to be returned to the initiator
             val inputsAndOutputs: Pair<List<StateAndRef<FungibleToken>>, List<FungibleToken>> =
-                    tokenSelection.generateMove(listOf(Pair(partyAndAmount.party, partyAndAmount.amount)), ourIdentity)
+                    tokenSelection.generateMove(listOf(Pair(partyAndAmount.party, partyAndAmount.amount)), buyerAnonymousParty)
             // send StateAndRef of money to initiator
             subFlow(SendStateAndRefFlow(counterpartySession, inputsAndOutputs.first))
             // send actual money back to initiator

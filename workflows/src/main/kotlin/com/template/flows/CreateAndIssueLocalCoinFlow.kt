@@ -1,6 +1,8 @@
 package com.template.flows
 
 import co.paralleluniverse.fibers.Suspendable
+import com.r3.corda.lib.accounts.workflows.accountService
+import com.r3.corda.lib.accounts.workflows.flows.RequestKeyForAccount
 import com.r3.corda.lib.tokens.contracts.states.FungibleToken
 import com.r3.corda.lib.tokens.contracts.utilities.issuedBy
 import com.r3.corda.lib.tokens.contracts.utilities.withNotary
@@ -11,7 +13,6 @@ import net.corda.core.contracts.Amount
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.flows.FlowLogic
 import net.corda.core.flows.StartableByRPC
-import net.corda.core.identity.Party
 import net.corda.core.utilities.ProgressTracker
 import java.util.*
 
@@ -19,12 +20,14 @@ import java.util.*
 @StartableByRPC
 class CreateAndIssueLocalCoinFlow(val tokenName: String,
                                   val volume: Int,
-                                  val holder: Party,
+                                  val holder_account: String,
                                   val valuation: Amount<Currency>) : FlowLogic<String>() {
     override val progressTracker = ProgressTracker()
 
     @Suspendable
     override fun call(): String {
+        val holderAccountInfo = accountService.accountInfo(holder_account)[0].state.data
+        val holderAnonymousParty = subFlow(RequestKeyForAccount(holderAccountInfo))
         // 1. get the notary
         val notary = serviceHub.networkMapCache.notaryIdentities[0]
 
@@ -39,12 +42,12 @@ class CreateAndIssueLocalCoinFlow(val tokenName: String,
         val issuedToken = coinState.toPointer(coinState.javaClass) issuedBy ourIdentity
 
         // 5. Create the FungibleToken and issue to the holder
-        val tokenCoin = FungibleToken(Amount(volume.toLong(), issuedToken), holder)
+        val tokenCoin = FungibleToken(Amount(volume.toLong(), issuedToken), holderAnonymousParty)
 
         // 6. Issue the token created
         val stx = subFlow(IssueTokens(listOf(tokenCoin)))
 
         return ("Created " + volume + " " + tokenName + " tokens for " + valuation.quantity + " " + valuation.token.currencyCode +
-                " to " + holder + "\nTransaction ID: " + stx.id)
+                " to " + holder_account + "\nTransaction ID: " + stx.id)
     }
 }
