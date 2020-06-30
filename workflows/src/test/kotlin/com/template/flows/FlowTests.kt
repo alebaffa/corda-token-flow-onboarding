@@ -3,12 +3,17 @@ package com.template.flows
 import com.r3.corda.lib.accounts.contracts.states.AccountInfo
 import com.r3.corda.lib.accounts.workflows.flows.OurAccounts
 import com.r3.corda.lib.tokens.contracts.states.FungibleToken
+import com.r3.corda.lib.tokens.money.JPY
 import com.r3.corda.lib.tokens.money.USD
 import com.template.states.CoinState
 import net.corda.core.contracts.Amount
+import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.TransactionVerificationException
+import net.corda.core.node.services.vault.QueryCriteria
+import net.corda.core.node.services.vault.QueryCriteria.VaultQueryCriteria
 import net.corda.core.utilities.getOrThrow
 import net.corda.testing.common.internal.testNetworkParameters
+import net.corda.testing.contracts.DummyState
 import net.corda.testing.core.singleIdentity
 import net.corda.testing.node.MockNetwork
 import net.corda.testing.node.MockNetworkParameters
@@ -18,10 +23,12 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.math.BigDecimal
+import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+
 
 class FlowTests {
     private lateinit var network: MockNetwork
@@ -67,7 +74,7 @@ class FlowTests {
     }
 
     @Test
-    fun `money are issued from Node A to account on Node B`() {
+    fun `fiat currency amount is issued to account in my node`() {
         val nodeB = b.info.singleIdentity()
         // Create account on Noda A
         a.startFlow(CreateAndShareAccountFlow("nodeA - Account1", listOf(nodeB)))
@@ -75,22 +82,28 @@ class FlowTests {
         a.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, 100, "nodeA - Account1")).getOrThrow()
         network.waitQuiescent()
 
-        val accountsWithB = b.startFlow(OurAccounts())
-        //TODO continue with fix of tests
+        val accountsWithA = a.startFlow(OurAccounts())
+        val account = accountsWithA.get()[0].state.data
+        val participatingAccountCriteria: QueryCriteria = VaultQueryCriteria()
+                .withExternalIds(Collections.singletonList(account.identifier.id))
+        val result = a.services.vaultService.queryBy(FungibleToken::class.java, participatingAccountCriteria).states
+        assertEquals(100, result[0].state.data.amount.quantity)
     }
 
     @Test
-    fun `coin token is created and issued to holder`() {
+    fun `token is issued to account shared with node B and nodeB can see it`() {
         val nodeB = b.info.singleIdentity()
         a.startFlow(CreateAndShareAccountFlow("nodeA - Account1", listOf(nodeB)))
 
-        a.startFlow(CreateAndIssueLocalCoinFlow("ETH", 10000, "nodeA - Account1", Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD))).getOrThrow()
+        a.startFlow(CreateAndIssueLocalCoinFlow(
+                "ETH",
+                10000,
+                "nodeA - Account1",
+                Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD)
+        )).getOrThrow()
         network.waitQuiescent()
 
         assertNotNull(b.services.vaultService.queryBy(CoinState::class.java))
-
-        val balance = b.services.vaultService.queryBy(FungibleToken::class.java)
-        assertEquals(balance.states[0].state.data.amount.quantity, 10000)
     }
 
     @Test
@@ -129,24 +142,35 @@ class FlowTests {
         val nodeB = b.info.singleIdentity()
         // Create one account on Noda A and NodeB
         a.startFlow(CreateAndShareAccountFlow("nodeA - Account1", listOf(nodeB)))
-        b.startFlow(CreateAndShareAccountFlow("nodeB - Account1", listOf(nodeA)))
+        b.startFlow(CreateAndShareAccountFlow("nodeB - Account2", listOf(nodeA)))
 
         // account in NodeB give some money to the account of nodeA
-        a.startFlow(IssueFiatCurrencyFlow(USD.tokenIdentifier, money.toLong(), "nodeA - Account1"))
+        b.startFlow(IssueFiatCurrencyFlow(JPY.tokenIdentifier, money.toLong(), "nodeB - Account2"))
         network.waitQuiescent()
+        val account = b.startFlow(OurAccounts()).get()[0].state.data
+        val participatingAccountCriteria: QueryCriteria = VaultQueryCriteria()
+                .withExternalIds(Collections.singletonList(account.identifier.id))
+        val moneyInBAccount = b.services.vaultService.queryBy(FungibleToken::class.java, participatingAccountCriteria).states
+        assertEquals(10000, moneyInBAccount[0].state.data.amount.quantity)
 
         // give some token to the Company
-        b.startFlow(CreateAndIssueLocalCoinFlow(
+        a.startFlow(CreateAndIssueLocalCoinFlow(
                 tokenName,
                 amountOfTokenToSell,
                 "nodeA - Account1",
-                Amount.fromDecimal(BigDecimal.valueOf(10), net.corda.finance.USD)
+                Amount.fromDecimal(BigDecimal.valueOf(1), net.corda.finance.JPY)
         ))
         network.waitQuiescent()
+        val accountInA = a.startFlow(OurAccounts()).get()[0].state.data
+        val accountCriteria: QueryCriteria = VaultQueryCriteria()
+                .withExternalIds(Collections.singletonList(accountInA.identifier.id))
+        val coinInA = a.services.vaultService.queryBy(FungibleToken::class.java, accountCriteria).states
+        assertEquals(amountOfTokenToSell.toLong(), coinInA[0].state.data.amount.quantity)
 
-        val result = a.startFlow(TransferCoinOverseasFlow("nodeA - Account1", "nodeB - Account1",10)).getOrThrow()
+
+        val result = a.startFlow(TransferCoinOverseasFlow("nodeA - Account1", "nodeB - Account2",1)).getOrThrow()
         network.waitQuiescent()
-        assertTrue { result.contains("\nCongratulations!") }
+        assertTrue { result.contains("\nThe ticket is sold to!") }
     }
 
 /*    @Test

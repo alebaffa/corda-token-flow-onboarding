@@ -5,11 +5,12 @@ import com.template.contracts.CoinContract
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.BelongsToContract
 import net.corda.core.contracts.UniqueIdentifier
+import net.corda.core.identity.AbstractParty
 import net.corda.core.identity.Party
 import java.util.*
 
 @BelongsToContract(CoinContract::class)
-data class CoinState(val issuer: Party,
+data class CoinState(val issuer: AbstractParty,
                      val name: String, // the name of the coin
                      val valuation: Amount<Currency>,
                      override val fractionDigits: Int = 0,
