@@ -33,6 +33,7 @@ class UpdateTokenFlow(val newValuation: Amount<Currency>,
                 newValuation,
                 0,
                 coinStateAndRef.state.data.linearId,
+                listOf(ourIdentity),
                 listOf(ourIdentity)
         )
         val stx = subFlow(UpdateEvolvableToken(coinStateAndRef, newCoin))

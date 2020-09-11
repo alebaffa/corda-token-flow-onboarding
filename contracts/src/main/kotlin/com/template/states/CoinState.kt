@@ -15,5 +15,6 @@ data class CoinState(val issuer: AbstractParty,
                      val valuation: Amount<Currency>,
                      override val fractionDigits: Int = 0,
                      override val linearId: UniqueIdentifier,
-                     override val maintainers: List<Party>
+                     override val maintainers: List<Party>,
+                     override val participants: List<AbstractParty>
 ) : EvolvableTokenType()

@@ -3,12 +3,15 @@ package com.template.flows
 import com.r3.corda.lib.accounts.contracts.states.AccountInfo
 import com.r3.corda.lib.accounts.workflows.flows.OurAccounts
 import com.r3.corda.lib.tokens.contracts.states.FungibleToken
+import com.r3.corda.lib.tokens.contracts.utilities.of
 import com.r3.corda.lib.tokens.money.JPY
 import com.r3.corda.lib.tokens.money.USD
 import com.template.states.CoinState
+import com.template.states.IssuanceRecord
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.TransactionVerificationException
+import net.corda.core.node.services.queryBy
 import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.node.services.vault.QueryCriteria.VaultQueryCriteria
 import net.corda.core.utilities.getOrThrow
@@ -19,15 +22,10 @@ import net.corda.testing.node.MockNetwork
 import net.corda.testing.node.MockNetworkParameters
 import net.corda.testing.node.StartedMockNode
 import net.corda.testing.node.TestCordapp
-import org.junit.After
-import org.junit.Before
-import org.junit.Test
+import org.junit.*
 import java.math.BigDecimal
 import java.util.*
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 
 class FlowTests {
@@ -103,6 +101,10 @@ class FlowTests {
         )).getOrThrow()
         network.waitQuiescent()
 
+        val recordedState = a.services.vaultService.queryBy<IssuanceRecord>().states.single()
+        val recordedStateInB = b.services.vaultService.queryBy<IssuanceRecord>().states.size
+        assertNotNull(recordedState)
+        assertEquals(0, recordedStateInB)
         assertNotNull(b.services.vaultService.queryBy(CoinState::class.java))
     }
 
@@ -131,6 +133,7 @@ class FlowTests {
     }
 
     @Test
+    @Ignore
     fun `deliver token and receive money back`() {
         val company = a.info.singleIdentity()
         val foreignBank = c.info.singleIdentity()

@@ -1,3 +1,4 @@
 {
-    "vscode-corda.isCordaProject": true
+    "vscode-corda.isCordaProject": true,
+    "vscode-corda.nodesAreRunning": false
 }

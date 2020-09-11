@@ -10,9 +10,6 @@ cordapp {
         licence "A liberal, open source licence"
         versionId 1
     }
-    signing {
-        enabled true
-    }
 }
 
 sourceSets {
